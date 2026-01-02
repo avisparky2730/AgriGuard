@@ -1,0 +1,10 @@
+services:
+  - type: static
+    name: agriguard-ai-tn
+    env: static
+    buildCommand: npm run build
+    publishPath: app/dist
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20

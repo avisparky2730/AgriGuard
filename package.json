@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "build": "cd app && npm install && npm run build"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0"
+  }
+}
