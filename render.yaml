@@ -1,5 +1,7 @@
-staticSites:
-  - name: agriguard-ai-tn
+services:
+  - type: web
+    name: agriguard-ai-tn
+    env: static
     buildCommand: npm run build
     publishPath: app/dist
     envVars:
