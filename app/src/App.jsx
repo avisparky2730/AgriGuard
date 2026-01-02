@@ -68,14 +68,27 @@ function App() {
     setImage(null);
     setPrediction(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(e => console.log("Video playback inhibited", e));
       }
     } catch (err) {
-      console.error("Error accessing camera:", err);
-      alert("Unable to access camera. Please check permissions.");
-      setIsCapturing(false);
+      console.error("Camera error:", err);
+      try {
+        const fallback = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) videoRef.current.srcObject = fallback;
+      } catch (fErr) {
+        alert("Camera access failed. Please check your browser permissions.");
+        setIsCapturing(false);
+      }
     }
   };
 
@@ -87,16 +100,14 @@ function App() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg');
-      setImage(dataUrl);
+      setImage(canvas.toDataURL('image/jpeg'));
       stopCamera();
     }
   };
 
   const stopCamera = () => {
     const stream = videoRef.current?.srcObject;
-    const tracks = stream?.getTracks();
-    tracks?.forEach(track => track.stop());
+    stream?.getTracks()?.forEach(track => track.stop());
     setIsCapturing(false);
   };
 
@@ -116,12 +127,8 @@ function App() {
     setLoading(true);
     setTimeout(() => {
       const keys = Object.keys(diseaseData);
-      const randomKey = keys[Math.floor(Math.random() * keys.length)];
-      const result = diseaseData[randomKey];
-      setPrediction({
-        data: result,
-        confidence: (Math.random() * (0.99 - 0.85) + 0.85).toFixed(2) * 100
-      });
+      const result = diseaseData[keys[Math.floor(Math.random() * keys.length)]];
+      setPrediction({ data: result, confidence: (Math.random() * 15 + 85).toFixed(1) });
       setLoading(false);
     }, 2500);
   };
@@ -129,12 +136,8 @@ function App() {
   const reset = () => {
     setImage(null);
     setPrediction(null);
-    setIsCapturing(false);
     setLoading(false);
-  };
-
-  const toggleLang = () => {
-    setLang(prev => prev === 'en' ? 'ta' : 'en');
+    setIsCapturing(false);
   };
 
   return (
@@ -144,51 +147,30 @@ function App() {
           <Leaf size={24} color="#2d5a27" />
           <span>AgriGuard AI</span>
         </div>
-        <button className="lang-toggle" onClick={toggleLang}>
-          <Languages size={18} />
-          {lang === 'en' ? 'தமிழ்' : 'English'}
+        <button className="lang-toggle" onClick={() => setLang(l => l === 'en' ? 'ta' : 'en')}>
+          <Languages size={18} /> {lang === 'en' ? 'தமிழ்' : 'English'}
         </button>
       </nav>
 
       <header className="hero">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1>{t.title}</h1>
           <p>{t.subtitle}</p>
         </motion.div>
       </header>
 
-      <main>
-        <div className="glass-card" style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <main className="main-content">
+        <div className="glass-card main-card">
           <AnimatePresence mode="wait">
             {!image && !isCapturing && (
-              <motion.div
-                key="initial"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="upload-options"
-              >
+              <motion.div key="init" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="upload-options">
                 <div className="upload-area" onClick={() => fileInputRef.current.click()}>
                   <Upload size={48} color="#2d5a27" style={{ marginBottom: '1rem' }} />
                   <h3>{t.upload}</h3>
                   <p>{t.dragDrop}</p>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    hidden
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                  />
+                  <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} />
                 </div>
-
-                <div className="divider">
-                  <span>{t.or}</span>
-                </div>
-
+                <div className="divider"><span>{t.or}</span></div>
                 <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={startCamera}>
                   <Camera size={20} /> {t.useCamera}
                 </button>
@@ -196,14 +178,10 @@ function App() {
             )}
 
             {isCapturing && (
-              <motion.div
-                key="camera"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
+              <motion.div key="cam" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <div className="camera-view">
-                  <video ref={videoRef} autoPlay playsInline id="camera-video" />
+                  <video ref={videoRef} autoPlay playsInline muted />
+                  <canvas ref={canvasRef} hidden />
                 </div>
                 <div className="action-bar">
                   <button className="btn btn-primary" onClick={captureImage}>{t.capture}</button>
@@ -213,12 +191,7 @@ function App() {
             )}
 
             {image && (
-              <motion.div
-                key="preview"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-              >
+              <motion.div key="prev" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
                 <div className="preview-container">
                   <img src={image} alt="Preview" className="preview-image" />
                   {loading && (
@@ -228,89 +201,44 @@ function App() {
                     </div>
                   )}
                 </div>
-
                 {!prediction && !loading && (
                   <div className="action-bar">
-                    <button className="btn btn-primary" onClick={analyzeImage}>
-                      {t.analyze}
-                    </button>
-                    <button className="btn btn-secondary" onClick={reset}>
-                      <RefreshCw size={20} /> {t.retake}
-                    </button>
+                    <button className="btn btn-primary" onClick={analyzeImage}>{t.analyze}</button>
+                    <button className="btn btn-secondary" onClick={reset}><RefreshCw size={18} /> {t.retake}</button>
                   </div>
                 )}
-
                 {prediction && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="result-dashboard"
-                  >
+                  <div className="result-dashboard">
                     <div className="result-header">
-                      <span className={`badge ${prediction.data[lang].name.includes('Healthy') || prediction.data[lang].name.includes('ஆரோக்கியமான') ? 'badge-success' : 'badge-warning'}`}>
-                        {prediction.data[lang].name.includes('Healthy') || prediction.data[lang].name.includes('ஆரோக்கியமான') ? t.normal : t.threat}
+                      <span className={`badge ${prediction.data[lang].name.includes('Healthy') ? 'badge-success' : 'badge-warning'}`}>
+                        {prediction.data[lang].name.includes('Healthy') ? t.normal : t.threat}
                       </span>
-                      <div className="confidence-pill">
-                        {prediction.confidence}% {t.confidence}
-                      </div>
+                      <div className="confidence-pill">{prediction.confidence}% {t.confidence}</div>
                     </div>
-
-                    <div className="result-title">
-                      <h2>{prediction.data[lang].name}</h2>
-                    </div>
-
+                    <div className="result-title"><h2>{prediction.data[lang].name}</h2></div>
                     <div className="dashboard-grid">
-                      <div className="info-card symptoms-card">
-                        <div className="card-header">
-                          <Info size={18} color="#856404" />
-                          <h3>{t.symptoms}</h3>
-                        </div>
-                        <ul className="data-list">
-                          {prediction.data[lang].symptoms.map((s, i) => (
-                            <li key={i}><AlertTriangle size={14} color="#f4b400" /> {s}</li>
-                          ))}
-                        </ul>
+                      <div className="info-card">
+                        <div className="card-header"><Info size={18} color="#856404" /><h3>{t.symptoms}</h3></div>
+                        <ul className="data-list">{prediction.data[lang].symptoms.map((s, i) => <li key={i}><AlertTriangle size={14} color="#f4b400" /> {s}</li>)}</ul>
                       </div>
-
-                      <div className="info-card organic-card">
-                        <div className="card-header">
-                          <Droplets size={18} color="#2d5a27" />
-                          <h3>{t.organic}</h3>
-                        </div>
-                        <ul className="data-list">
-                          {prediction.data[lang].organic.map((s, i) => (
-                            <li key={i}><CheckCircle size={14} color="#4caf50" /> {s}</li>
-                          ))}
-                        </ul>
+                      <div className="info-card">
+                        <div className="card-header"><Droplets size={18} color="#2d5a27" /><h3>{t.organic}</h3></div>
+                        <ul className="data-list">{prediction.data[lang].organic.map((s, i) => <li key={i}><CheckCircle size={14} color="#4caf50" /> {s}</li>)}</ul>
                       </div>
-
-                      <div className="info-card chemical-card">
-                        <div className="card-header">
-                          <FlaskConical size={18} color="#004085" />
-                          <h3>{t.chemical}</h3>
-                        </div>
-                        <ul className="data-list">
-                          {prediction.data[lang].chemical.map((s, i) => (
-                            <li key={i}><ShieldCheck size={14} color="#2a7ade" /> {s}</li>
-                          ))}
-                        </ul>
+                      <div className="info-card">
+                        <div className="card-header"><FlaskConical size={18} color="#004085" /><h3>{t.chemical}</h3></div>
+                        <ul className="data-list">{prediction.data[lang].chemical.map((s, i) => <li key={i}><ShieldCheck size={14} color="#2a7ade" /> {s}</li>)}</ul>
                       </div>
                     </div>
-
-                    <button className="btn btn-secondary btn-full" onClick={reset}>
-                      {t.back}
-                    </button>
-                  </motion.div>
+                    <button className="btn btn-secondary btn-full" onClick={reset}>{t.back}</button>
+                  </div>
                 )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </main>
-
-      <footer>
-        &copy; 2025 {t.title}. {t.footer}
-      </footer>
+      <footer>&copy; 2025 {t.title}. {t.footer}</footer>
     </div>
   );
 }
