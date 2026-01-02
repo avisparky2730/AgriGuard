@@ -3,7 +3,7 @@ services:
     name: agriguard-ai-tn
     runtime: static
     buildCommand: npm run build
-    publishPath: app/dist
+    staticPublishPath: app/dist
     envVars:
       - key: NODE_VERSION
         value: "20"
